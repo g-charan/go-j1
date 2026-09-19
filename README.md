@@ -14,7 +14,7 @@ main.go          backend: /user/<id> (fake 50 ms DB), /stats, /stats.json
 cache.go         LRU with TTL + single-flight
 cache_test.go    go test -race .
 lb/main.go       load balancer: round robin, 2 s health checks, pooled connections
-lb/dashboard.go  /dashboard HTML (inline, no deps) + /dashboard.json
+lb/dashboard.go  /dashboard: animated request flow, live charts, event log, load + outage buttons (inline, no deps)
 deploy.sh        build for ARMv7, kill old processes, push, start all three
 ```
 
@@ -27,6 +27,8 @@ Prereqs: Go, `adb` (`brew install go android-platform-tools`), USB debugging ena
 adb shell "ip addr show wlan0 | grep 'inet '" # phone IP
 open http://<phone-ip>:8080/dashboard
 ```
+
+`/admin/pause?backend=8081&secs=10` makes one backend answer 503 for a while so you can watch the health check and failover.
 
 Ports: 8080 balancer, 8081 and 8082 backends. Backend flags: `-port`, `-cache`, `-cache-size` (default 1000), `-cache-ttl` (default 1m). Balancer flags: `-port`, `-backends`.
 

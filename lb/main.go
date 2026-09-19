@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -45,19 +46,38 @@ func main() {
 		for {
 			for _, b := range backends {
 				resp, err := client.Get(b.url + "/stats")
+				ok := err == nil && resp.StatusCode == http.StatusOK
 				if err == nil {
 					resp.Body.Close()
 				}
-				if b.alive.Load() != (err == nil) {
-					log.Printf("%s alive=%v", b.url, err == nil)
+				if b.alive.Load() != ok {
+					log.Printf("%s alive=%v", b.url, ok)
 				}
-				b.alive.Store(err == nil)
+				b.alive.Store(ok)
 			}
 			time.Sleep(2 * time.Second)
 		}
 	}()
 
 	started := time.Now()
+	// /admin/pause?backend=8081&secs=10 forwards to that one backend, not round robin
+	http.HandleFunc("/admin/pause", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		for _, b := range backends {
+			if strings.HasSuffix(b.url, ":"+q.Get("backend")) {
+				resp, err := http.Get(b.url + "/admin/pause?secs=" + q.Get("secs"))
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadGateway)
+					return
+				}
+				defer resp.Body.Close()
+				w.WriteHeader(resp.StatusCode)
+				io.Copy(w, resp.Body)
+				return
+			}
+		}
+		http.Error(w, "unknown backend", http.StatusNotFound)
+	})
 	http.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write([]byte(dashboardHTML))
