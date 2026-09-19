@@ -3,6 +3,8 @@
 A system design lab running on a 2015 Samsung Galaxy J1 (1 GB RAM, 32-bit ARM, Android 5.1, no root).
 Two Go HTTP servers with a bounded LRU cache, a round-robin load balancer with health checks, and a live dashboard. Deployed over `adb`, nothing installed on the phone.
 
+Live: https://wispy-uplifted-recycler.ngrok-free.dev/dashboard (served from the phone, click through ngrok's interstitial)
+
 Write-up: [blog.md](blog.md)
 
 ## Layout
@@ -35,11 +37,16 @@ brew install hey
 hey -n 2000 -c 50 http://<phone-ip>:8080/user/42
 ```
 
-Make it public from the Mac, no account needed:
+Public URL, from the phone itself (no laptop in the path). Go programs cannot resolve DNS on Android 5.1, so the ngrok agent needs its DNS override. One-time setup, then `deploy.sh` restarts it:
 
 ```bash
-brew install cloudflared
-cloudflared tunnel --url http://<phone-ip>:8080
+# ngrok-v3-stable-linux-arm.tgz -> adb push ngrok /data/local/tmp/
+# /data/local/tmp/ngrok.yml (not in this repo):
+#   version: "2"
+#   authtoken: <yours>
+#   dns_resolver_ips: [1.1.1.1, 8.8.8.8]
+#   crl_noverify: true
+#   update_check: false
 ```
 
 ## Numbers (through the balancer, 50 concurrent)
@@ -58,3 +65,4 @@ The phone is at 99% CPU under load; the balancer alone takes 39%. Next step is m
 - `ps` shows the exact path a process was started with. Start by absolute path or your grep will not match.
 - `nohup cmd &` from `adb shell` is racy. Use `trap '' HUP` in the shell before starting.
 - Only `/data/local/tmp` is executable without root. Ports below 1024 are off limits.
+- No `/etc/resolv.conf`, so static Go binaries fall back to `[::1]:53` and every DNS lookup fails. cloudflared's quick tunnel cannot work here; ngrok's `dns_resolver_ips` + `crl_noverify` can.

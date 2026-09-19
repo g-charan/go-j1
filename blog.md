@@ -100,15 +100,19 @@ Four things I did not expect:
 
 A 40% gain, not the 7x I hoped for. `top` on the phone explained it: 99% CPU, the balancer alone taking 39% and the kernel 34% moving packets. Every request through the balancer is handled twice on the same four slow cores. The rest of the gap is not a code problem. It is the balancer living on the same box as the things it balances. The fix is a second machine, which is the next post.
 
-## Making it public
+## Making it public, from the phone
 
-The phone serves a live dashboard at `/dashboard`: request flow, per-backend routing counts, cache hits, misses, shared lookups, evictions and expiries, refreshed every second, with a button that fires 100 requests so you can watch the counters move. To put it on the internet without touching the phone, my Mac runs a Cloudflare quick tunnel pointed at it:
+The phone serves a live dashboard at `/dashboard`: request flow, per-backend routing counts, cache hits, misses, shared lookups, evictions and expiries, refreshed every second, with a button that fires 100 requests so you can watch the counters move.
 
-```bash
-cloudflared tunnel --url http://192.168.0.142:8080
-```
+First attempt at a public URL was a Cloudflare quick tunnel from my Mac pointed at the phone. One command, worked in a minute. Then I asked myself the question this whole lab exists for: what if the Mac is down? The link dies. The Mac was a single point of failure.
 
-No account, one command, a public URL. Tailscale would have been my first thought, but its Android app needs Android 8 and it builds a private network, not a public URL.
+So the tunnel had to run on the phone. Cloudflare ships a 32-bit ARM build, it ran, and it failed on the first DNS lookup. Go programs on Linux read `/etc/resolv.conf` to find a DNS server. Android has no such file, so Go falls back to asking `localhost:53`, where nothing listens. Go's own source has a comment: "DNS requests don't work on Android". Our server never noticed because it never resolves a name. I could not run a forwarder on port 53 either, that needs root.
+
+Cloudflare's anonymous quick tunnel has no way around that. ngrok's agent does: `dns_resolver_ips` tells it which DNS server to use by IP, and `crl_noverify` skips one side request that still used the broken resolver. With those two lines in its config and a free account, the phone registered its own tunnel and got a fixed hostname:
+
+https://wispy-uplifted-recycler.ngrok-free.dev/dashboard
+
+Nothing but the phone, a charger and Wi-Fi. Tailscale, my first thought, needs Android 8 and builds a private network rather than a public link.
 
 ## What I actually learned
 
