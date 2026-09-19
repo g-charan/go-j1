@@ -51,15 +51,16 @@ Public URL, from the phone itself (no laptop in the path). Go programs cannot re
 #   update_check: false
 ```
 
-## Numbers (through the balancer, 50 concurrent)
+## Numbers (50 concurrent)
 
 | | rps |
 |---|---|
-| one backend directly | 1930 |
-| via balancer, before pooling | 280 |
-| via balancer, after pooling | 396 |
+| via balancer, no connection pool | 280 |
+| via balancer, pooled | 396 |
+| via balancer, pooled, Play Services stopped | 1073 |
+| one backend directly, Play Services stopped | 3920 |
 
-The phone is at 99% CPU under load; the balancer alone takes 39%. Next step is moving it off the phone.
+Google Play Services and the Play Store were burning ~70% of the CPU at idle on this wiped phone (stuck auth loop, see logcat). `pm disable` is refused for the shell user on 5.1, but `am force-stop` works, and after it the process restarts idle. `deploy.sh` does this on every deploy. Under load the balancer still takes a third of the CPU; moving it off the phone is the next step.
 
 ## Android 5.1 gotchas
 
@@ -67,4 +68,5 @@ The phone is at 99% CPU under load; the balancer alone takes 39%. Next step is m
 - `ps` shows the exact path a process was started with. Start by absolute path or your grep will not match.
 - `nohup cmd &` from `adb shell` is racy. Use `trap '' HUP` in the shell before starting.
 - Only `/data/local/tmp` is executable without root. Ports below 1024 are off limits.
+- `pm disable-user` is refused for the shell user. `am force-stop <pkg>` works and is enough to calm a runaway system app.
 - No `/etc/resolv.conf`, so static Go binaries fall back to `[::1]:53` and every DNS lookup fails. cloudflared's quick tunnel cannot work here; ngrok's `dns_resolver_ips` + `crl_noverify` can.

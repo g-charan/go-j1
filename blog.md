@@ -100,6 +100,22 @@ Four things I did not expect:
 
 A 40% gain, not the 7x I hoped for. `top` on the phone explained it: 99% CPU, the balancer alone taking 39% and the kernel 34% moving packets. Every request through the balancer is handled twice on the same four slow cores. The rest of the gap is not a code problem. It is the balancer living on the same box as the things it balances. The fix is a second machine, which is the next post.
 
+## The CPU that was never ours
+
+While building the dashboard I added a phone CPU tile, and it read 96% with nothing running. `top` on the phone showed Google Play Services at 29%, the Play Store at 27% and system_server at 26%. The logcat was a loop of authentication errors: a wiped phone with no Google account, and Play Services trying anyway, forever.
+
+`pm disable-user` is refused for the adb shell user on Android 5.1. `am force-stop` is not. One force-stop each and the phone went from 98% CPU to 3%. Play Services restarted itself a minute later, calm this time, so I put the force-stop in the deploy script.
+
+Then I re-ran the same load tests:
+
+| 50 concurrent | Before | After |
+|---|---|---|
+| `/` through balancer | 396 rps | 1073 rps |
+| `/user/42` cached, through balancer | 404 rps | 1182 rps |
+| `/` direct to one backend | 1930 rps | 3920 rps |
+
+Everything nearly tripled and I had not changed a line of my code. That is the most important lesson of the day: when you measure, measure the whole machine. I had spent an hour tuning connection pools while two thirds of the CPU was being eaten by something I had never looked at. Real servers have their equivalent, a log shipper, a backup agent, a cron job someone forgot. The dashboard tile is there so nobody has to rediscover it.
+
 ## Making it public, from the phone
 
 The phone serves a live dashboard at `/dashboard`: request flow, per-backend routing counts, cache hits, misses, shared lookups, evictions and expiries, refreshed every second, with a button that fires 100 requests so you can watch the counters move.

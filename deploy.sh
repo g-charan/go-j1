@@ -3,6 +3,8 @@ export GOOS=linux GOARCH=arm GOARM=7
 go build -o bin/server .
 go build -o bin/lb ./lb
 adb shell 'ps | grep tmp/ | while read user pid rest; do kill $pid; done'
+# Google Play Services spins at ~70% CPU on this wiped phone; a force-stop calms it (it restarts idle)
+adb shell 'for p in com.google.android.gms com.android.vending com.google.android.gsf; do am force-stop $p; done'
 adb push bin/server bin/lb /data/local/tmp/
 adb shell "cd /data/local/tmp; chmod 755 server lb; trap '' HUP;
   /data/local/tmp/server -port 8081 -cache -cache-size 200 -cache-ttl 20s < /dev/null > s1.log 2>&1 &
